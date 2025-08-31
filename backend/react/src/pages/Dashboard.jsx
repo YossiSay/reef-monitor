@@ -252,6 +252,7 @@ export default function Dashboard() {
         onDisconnect={disconnectOne}
         statusById={statusById}
         deviceStatusById={deviceStatusById}
+        setSnackbar={setSnackbar}
       />
 
       <div style={{ height: 12 }} />

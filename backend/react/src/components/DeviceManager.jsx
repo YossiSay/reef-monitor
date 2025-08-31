@@ -18,7 +18,8 @@ export default function DeviceManager ({
   onConnect,
   onDisconnect,
   statusById,
-  deviceStatusById
+  deviceStatusById,
+  setSnackbar
 }) {
   const [nickname, setNickname] = React.useState("");
   const [token, setToken]     = React.useState("");
@@ -27,6 +28,7 @@ export default function DeviceManager ({
   // Auto-connect to all devices on mount
   useEffect(() => {
     if (devices.length === 0) return;
+      setSnackbar({ message: "Attempting to connect to all devices...", type: "info" });
       setTimeout(() => {
         devices.forEach(d => {
           onConnect(d)
