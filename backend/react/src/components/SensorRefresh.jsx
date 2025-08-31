@@ -16,7 +16,7 @@ export default function SensorRefresh ({
       <CardContent>
         <div style={{ display:"flex", justifyContent:"space-between"}}>
           <div style={{ display:"flex", alignItems:"center", gap: 8 }}>
-            <span style={{ color: theme.color.inkMuted, fontSize: 13 }}>Auto refresh</span>
+            <span style={{ color: theme.color.inkMuted, fontSize: 12 }}>Auto refresh</span>
             <input
               type="checkbox"
               checked={auto}
@@ -34,7 +34,7 @@ export default function SensorRefresh ({
               <option value={30000}>30s</option>
             </select>
 
-            <span style={{ color: theme.color.inkMuted, fontSize: 13 }}>Points</span>
+            <span style={{ color: theme.color.inkMuted, fontSize: 12 }}>Points</span>
             <select
               value={points}
               onChange={(e) => setPoints(+e.target.value)}
@@ -47,7 +47,7 @@ export default function SensorRefresh ({
             </select>
           </div>
 
-          <Button variant="outline" onClick={requestLastNAll}><RefreshCcw size={16}/> Refresh all</Button>
+          <Button variant="outline" onClick={requestLastNAll}><RefreshCcw size={16}/></Button>
         </div>
       </CardContent>
     </Card>

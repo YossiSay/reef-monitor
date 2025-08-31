@@ -268,11 +268,7 @@ export default function Admin() {
             <StatusPill status={ble.connected ? "Connected" : "Disconnected"} />
           </div>
 
-          <div style={{
-              display: "grid", 
-              gridTemplateColumns: "1fr 1fr 1fr auto",
-              marginTop: 12}}
-            >
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr"}}>
               <Button onClick={ble.connect} disabled={ble.connected || !ble.supported}>Connect</Button>
               <Button variant="outline" onClick={ble.disconnect} disabled={!ble.connected} style={{marginLeft: 8, marginRight: 8}}>Disconnect</Button>
               <Button variant="outline" onClick={ble.readNow} disabled={!ble.connected}>Read Now</Button>
@@ -315,37 +311,17 @@ export default function Admin() {
         subtitle="Fields populate on first connect"
         footer="Use Chrome/Edge on desktop over HTTPS for Web Bluetooth support."
       >
-        <div style={{
-          display: "grid", 
-          gridTemplateColumns: "1fr 1fr 1fr auto", 
-          gap: 8, 
-          marginBottom: 12
-        }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 8, marginBottom: 8 }}>
           <StyledInput value={ble.fields.name} onChange={ble.handleField("name")} placeholder="Device Name" ariaLabel="Device Name" disabled={!ble.connected} />
           <StyledInput value={ble.fields.ssid} onChange={ble.handleField("ssid")} placeholder="SSID" ariaLabel="SSID" disabled={!ble.connected} />
           <StyledInput value={ble.fields.pass} onChange={ble.handleField("pass")} placeholder="Password" ariaLabel="Password" disabled={!ble.connected} />
           <Button onClick={ble.saveWifi} disabled={!ble.connected}>Save Wi-Fi</Button>
-        </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr auto",
-          gap: 8,
-          marginBottom: 12
-        }}>
-          <StyledInput value={ble.fields.wsHost} onChange={ble.handleField("wsHost")} placeholder="WS Host" ariaLabel="WS Host" disabled={!ble.connected} />
-          <StyledInput value={ble.fields.wsPort} onChange={ble.handleField("wsPort")} placeholder="WS Port" ariaLabel="WS Port" disabled={!ble.connected} />
-          <Button onClick={ble.saveBackend} disabled={!ble.connected}>Save Backend</Button>
-        </div>
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          gap: 8,
-          marginBottom: 12
-        }}>
+          
           <StyledInput value={ble.fields.token} onChange={ble.handleField("token")} placeholder="Token" ariaLabel="Token" disabled={!ble.connected || !ble.canWriteToken} />
           <Button onClick={ble.saveToken} disabled={!ble.connected || !ble.canWriteToken}>Save Token</Button>
         </div>
-        <div style={{ marginTop: 12 }}>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr"}}>
           <Button variant="destructive" onClick={ble.reboot} disabled={!ble.connected}>Reboot Device</Button>
         </div>
       </SectionCard>
