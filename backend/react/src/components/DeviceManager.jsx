@@ -1,7 +1,15 @@
 import React from "react";
 import {Trash2, PlugZap} from "lucide-react";
-import {theme, Badge, Button, StatusPill, StyledInput, SectionCard} from '@/components/Common'
+import {theme, Badge, Button, StatusPill, StyledInput, SectionCard, Label} from '@/components/Common'
 import {normalizeMacInput} from '@/components/Functions'
+
+const generateUUID = () => {
+  if (crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // fallback
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+};
 
 export default function DeviceManager ({
   devices,
@@ -26,11 +34,13 @@ export default function DeviceManager ({
           <StyledInput value={token} onChange={(e) => setToken(e.target.value)} placeholder="Device Token" ariaLabel="Device token"/>
           <StyledInput value={mac} onChange={(e) => setMac(normalizeMacInput(e.target.value))} placeholder="Device MAC" ariaLabel="Device mac"/>
           <StyledInput value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Device Nickname" ariaLabel="Device nickname"/>
+
           <Button variant="outline" onClick={() => {
-              const dev = { id: crypto.randomUUID(), nickname: nickname || "Device", token, mac };
+              const dev = { id: generateUUID(), nickname: nickname || "Device", token, mac };
               onAdd(dev);
               setNickname(""); setToken(""); setMac("");
             }}>Add Device</Button>
+            
         </div>
 
         {/* Devices list */}
@@ -47,33 +57,37 @@ export default function DeviceManager ({
               const isConnecting = uiStatus === "Connecting...";
               return (
                 <li key={d.id}
-                    style={{
-                      display:"grid",
-                      gridTemplateColumns:"1fr 1fr 1fr auto auto auto",
-                      gap: 8,
-                      alignItems:"center",
-                      border:`1px solid ${theme.color.border}`,
-                      borderRadius: 12,
-                      padding: "8px 10px",
-                      background:"#fff"
-                    }}>
-
-                  <div style={{ fontWeight: 800 }}>{d.nickname}</div>
-                  <div style={{ fontFamily: "monospace", fontSize: 12, color: theme.color.inkMuted, overflow:"hidden", textOverflow:"ellipsis" }}>{d.token}</div>
-                  <div style={{ fontFamily: "monospace", fontSize: 12, color: theme.color.inkMuted }}>{d.mac}</div>
+                   className="grid gap-2 items-center"
+                      style={{
+                      border: `1px solid ${devStatus === "online" ? "#5fd3cd" : "#ff8082"}`,
+                      borderRadius: "12px",
+                      padding: "8px"
+                     }}>
+                  <div className="flex justify-between">
+                    <div>{d.nickname}</div>
+                    <div className="flex gap-1">
+                      <StatusPill status={uiStatus} />
+                      <Badge tone={devStatus === "online" ? "ok" : devStatus === "offline" ? "danger" : "warn"}>
+                        {devStatus}
+                      </Badge>
+                    </div>
+                  </div>
                   
-                  <StatusPill status={uiStatus} />
-                  <Badge tone={devStatus === "online" ? "ok" : devStatus === "offline" ? "danger" : "warn"}>{devStatus}</Badge>
-                  <div style={{ display:"flex", gap:8, justifySelf:"end" }}>
+                  <div style={{fontSize: 12,
+                    color: theme.color.inkMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}
+                  title={d.token}>
+                  {d.token}
+                  </div>
+
+                  <div className="text-xs text-muted">{d.mac}</div>
+
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap: 8}}>
                     <Button variant="outline" onClick={() => onConnect(d)} disabled={isConnecting || isConnected}>
                       <PlugZap size={16}/> {isConnected ? "Connected" : "Connect"}
                     </Button>
-                    <Button variant="outline" onClick={() => onDisconnect(d)} disabled={!isConnected && !isConnecting}>
-                      Disconnect
-                    </Button>
-                    <Button variant="destructive" onClick={() => onRemove(d)}>
-                      <Trash2 size={16}/> Remove
-                    </Button>
+                    <Button variant="outline" onClick={() => onDisconnect(d)} disabled={!isConnected && !isConnecting}>Disconnect</Button>
+                    <Button variant="destructive" onClick={() => onRemove(d)}><Trash2 size={16}/>Remove</Button>
                   </div>
                 </li>
               );
