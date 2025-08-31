@@ -9,8 +9,8 @@ export default function PageHeader ({title, subtitle}) {
         marginBottom: 12
       }}>
         <SectionTitle
-          title="ESP32 Bluetooth Setup"
-          subtitle="Configure over BLE: Wi-Fi, backend, token, and reboot"
+          title={title}
+          subtitle={subtitle}
         />
         <div />
       </header>
