@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>ESP32 Bluetooth Setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Dosis font -->
+  <link href="https://fonts.googleapis.com/css2?family=Dosis:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --muted:#6b7280; --ok:#0F766E; --warn:#C2410C; --danger:#B91C1C;
+    }
+
+    /* Base */
+    html,body{
+      font-family:'Dosis', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      font-size:14px;
+      line-height:1.25;
+    }
+
+    /* Badges */
+    .badge-pill{ border-radius:999px; font-weight:700; font-size:.72rem; padding:2px 8px; }
+    .badge-ok  { background:#E6FFFA; color:var(--ok);     border:1px solid rgba(15,118,110,.2); }
+    .badge-warn{ background:#FFF7ED; color:var(--warn);   border:1px solid rgba(194,65,12,.2); }
+    .badge-err { background:#FEE2E2; color:var(--danger); border:1px solid rgba(185,28,28,.2); }
+
+    /* Soft blocks */
+    .soft{ background:#f9fafb; border:1px dashed #e5e7eb; }
+
+    /* Mono helper */
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    /* Tiny helper text */
+    .tiny{ font-size:.75rem; color:var(--muted); }
+
+    /* Ensure controls inherit typography */
+    input, textarea, button, select{ font-family:inherit; font-size:.9rem; }
+  </style>
+</head>
+<body class="py-3">
+  <div class="container" style="max-width:900px">
+    <h1 class="h4 mb-1">ESP32 Bluetooth Setup</h1>
+    <p class="text-muted mb-3">Connect over Bluetooth, configure Wi-Fi, WS host/port, set the cloud token, and reboot.</p>
+
+    <!-- Bluetooth / Status -->
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold">Bluetooth</span>
+        <span id="bleStatus" class="badge badge-pill text-muted border">disconnected</span>
+      </div>
+      <div class="card-body">
+        <!-- 3 equal buttons, same row, full width each -->
+        <div class="row g-2 mb-3">
+          <div class="col-12 col-md-4"><button id="btnConnect" class="btn btn-dark w-100">Connect</button></div>
+          <div class="col-12 col-md-4"><button id="btnDisconnect" class="btn btn-outline-dark w-100" disabled>Disconnect</button></div>
+          <div class="col-12 col-md-4"><button id="btnReadStatus" class="btn btn-outline-dark w-100" disabled>Read Now</button></div>
+        </div>
+
+        <!-- compact status strip -->
+        <div class="rounded-3 p-2 soft">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="me-1">Wi-Fi:</span>
+            <span id="wifiBadge" class="badge badge-pill text-muted border">unknown</span>
+            <span class="ms-2 tiny">IP</span><span id="ipText" class="tiny">-</span>
+            <span class="ms-3 tiny">MAC</span><span id="macText" class="tiny">-</span>
+            <span class="ms-3 tiny">RSSI</span><span id="rssiText" class="tiny">-</span>
+            <span class="ms-3 tiny">WS Err</span><span id="wsErrText" class="tiny">-</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer tiny py-2">Web Bluetooth ▶ GATT characteristics (UTF-8 strings)</div>
+    </div>
+
+    <!-- Configure -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold">Configure</span>
+        <span class="tiny">Editable fields are populated once on connect</span>
+      </div>
+      <div class="card-body">
+        <!-- Device Name -->
+        <div class="mb-3">
+          <label class="form-label tiny">Device Name</label>
+          <input id="name" class="form-control" placeholder="">
+        </div>
+
+        <!-- Wi-Fi SSID/PASS inline + Save -->
+        <div class="row g-2 align-items-end mb-1">
+          <div class="col-12 col-md-5">
+            <label class="form-label tiny">Wi-Fi SSID</label>
+            <input id="ssid" class="form-control" placeholder="" autocomplete="off">
+          </div>
+          <div class="col-12 col-md-5">
+            <label class="form-label tiny">Wi-Fi Password</label>
+            <input id="pass" class="form-control" type="password" placeholder="" autocomplete="off">
+          </div>
+          <div class="col-12 col-md-2">
+            <label class="form-label tiny">&nbsp;</label>
+            <button id="btnSaveWifi" class="btn btn-dark w-100" disabled>Save Wi-Fi</button>
+          </div>
+        </div>
+        <div class="tiny mb-3">Writes SSID & password; device will try to connect.</div>
+
+        <!-- Backend host/port inline + Save -->
+        <div class="row g-2 align-items-end mb-3">
+          <div class="col-12 col-md-5">
+            <label class="form-label tiny">WS Host</label>
+            <input id="wshost" class="form-control" placeholder="">
+          </div>
+          <div class="col-12 col-md-5">
+            <label class="form-label tiny">WS Port</label>
+            <input id="wsport" class="form-control" type="number" inputmode="numeric" min="1" max="65535" placeholder="">
+          </div>
+          <div class="col-12 col-md-2">
+            <label class="form-label tiny">&nbsp;</label>
+            <button id="btnSaveBackend" class="btn btn-dark w-100" disabled>Save Backend</button>
+          </div>
+        </div>
+
+        <!-- Token + full width save -->
+        <div class="mb-2">
+          <label class="form-label tiny">Cloud Token (set only if Wi-Fi connected)</label>
+          <textarea id="token" class="form-control" rows="3" placeholder="eyJhbGciOiJI..."></textarea>
+        </div>
+        <div class="mb-3">
+          <button id="btnSaveToken" class="btn btn-dark w-100" disabled>Save Token</button>
+          <div id="tokenHint" class="tiny mt-1">Enable once Wi-Fi is connected.</div>
+        </div>
+
+        <!-- Full width reboot -->
+        <button id="btnReboot" class="btn btn-danger w-100" disabled>Reboot Device</button>
+        <div class="tiny mt-1">Sends the “reboot” command via BLE.</div>
+      </div>
+      <div class="card-footer tiny py-2">Nothing is sent to the internet; this page talks directly to the ESP.</div>
+    </div>
+  </div>
+
+  <script>
+    // ===== UUIDs (must match firmware) =====
+    const SERVICE_A_UUID   = '0000a100-0000-1000-8000-00805f9b34fb'; // device/status
+    const SERVICE_B_UUID   = '0000a200-0000-1000-8000-00805f9b34fb'; // network/backend
+
+    // A1xx (Service A)
+    const STATUS_CHAR_UUID = '0000a101-0000-1000-8000-00805f9b34fb';
+    const DEVICE_NAME_UUID = '0000a104-0000-1000-8000-00805f9b34fb';
+    const TOKEN_UUID       = '0000a105-0000-1000-8000-00805f9b34fb';
+    const COMMAND_UUID     = '0000a106-0000-1000-8000-00805f9b34fb';
+
+    // A2xx (Service B)
+    const WIFI_SSID_UUID   = '0000a201-0000-1000-8000-00805f9b34fb';
+    const WIFI_PASS_UUID   = '0000a202-0000-1000-8000-00805f9b34fb';
+    const WSHOST_UUID      = '0000a203-0000-1000-8000-00805f9b34fb';
+    const WSPORT_UUID      = '0000a204-0000-1000-8000-00805f9b34fb';
+
+    // ===== Elements =====
+    const $ = (id) => document.getElementById(id);
+    const bleStatusEl = $('bleStatus');
+    const wifiBadgeEl = $('wifiBadge');
+    const ipTextEl    = $('ipText');
+    const macTextEl   = $('macText');
+    const rssiTextEl   = $('rssiText');
+    const ssidEl  = $('ssid');
+    const passEl  = $('pass');
+    const nameEl  = $('name');
+    const tokenEl = $('token');
+    const wsHostEl = $('wshost');
+    const wsPortEl = $('wsport');
+    const btnConnect = $('btnConnect');
+    const btnDisconnect = $('btnDisconnect');
+    const btnReadStatus = $('btnReadStatus');
+    const btnSaveWifi = $('btnSaveWifi');
+    const btnSaveBackend = $('btnSaveBackend');
+    const btnSaveToken = $('btnSaveToken');
+    const btnReboot = $('btnReboot');
+    const tokenHint = $('tokenHint');
+    const wsErrTextEl = $('wsErrText');
+
+    // ===== BLE state =====
+    let device=null, server=null, svcA=null, svcB=null;
+    // chars:
+    let statusChar=null, ssidChar=null, passChar=null, nameChar=null, tokenChar=null, cmdChar=null, wsHostChar=null, wsPortChar=null;
+    let didInitialPopulate=false, statusTimer=null;
+    const td = new TextDecoder();
+    const log = (m)=>console.log(`[BLE] ${m}`);
+
+    // ===== UI helpers =====
+    function refreshButtons(connected){
+      btnConnect.disabled     = !!connected;
+      btnDisconnect.disabled  = !connected;
+      btnReadStatus.disabled  = !connected;
+      btnSaveWifi.disabled    = !connected;
+      btnSaveBackend.disabled = !connected;
+      btnReboot.disabled      = !connected;
+    }
+    function setBleUi(connected){
+      bleStatusEl.textContent = connected ? 'connected' : 'disconnected';
+      bleStatusEl.className = 'badge badge-pill ' + (connected ? 'badge-ok' : '');
+      if (!connected && statusTimer){ clearInterval(statusTimer); statusTimer=null; }
+      refreshButtons(connected);
+    }
+
+    function setWifiBadge(state){
+      wifiBadgeEl.textContent = state || 'unknown';
+      wifiBadgeEl.className = 'badge badge-pill ' + (state==='connected' ? 'badge-ok' : state==='disconnected' ? 'badge-err' : 'badge-warn');
+    }
+
+    function setElBadge(el, isError = false){
+      el.className = `badge badge-pill ${isError ? 'badge-err' : 'badge-ok'}`;
+    }
+
+    function updateStatusUi(statusObj){
+      const wifi = statusObj?.wifi || 'unknown';
+      const ip   = statusObj?.ip   || '-';
+      const mac  = statusObj?.mac  || '-';
+      const rssi  = statusObj?.rssi  || '-';
+      const wsErr = statusObj?.ws_last_error || '';
+
+      setWifiBadge(wifi);
+      setElBadge(ipTextEl)
+      setElBadge(macTextEl)
+      setElBadge(rssiTextEl)
+      setElBadge(wsErrTextEl, wsErr || false)
+
+      ipTextEl.textContent  = ip;
+      macTextEl.textContent = mac;
+      rssiTextEl.textContent = rssi;
+
+      // NEW: show last WS error (if any)
+      wsErrTextEl.textContent = wsErr || '-';
+
+      const wifiReady = (wifi === 'connected');
+      btnSaveToken.disabled = !(wifiReady);
+      tokenHint.textContent = btnSaveToken.disabled ? 'Enable once Wi-Fi is connected.' : 'Ready to write the cloud token.';
+    }
+
+    function populateConfigFromStatusOnce(statusObj){
+      if (didInitialPopulate) return;
+      didInitialPopulate = true;
+      nameEl.value   = statusObj?.name   || '';
+      // allow either ws_host/wsHost and ws_port/wsPort
+      wsHostEl.value = statusObj?.wsHost ?? statusObj?.ws_host ?? '';
+      const wsP = statusObj?.wsPort ?? statusObj?.ws_port ?? '';
+      wsPortEl.value = wsP !== '' ? String(wsP) : '';
+      if (typeof statusObj?.ssid === 'string') ssidEl.value = statusObj.ssid;
+      if (typeof statusObj?.pass === 'string') passEl.value = statusObj.pass;
+      if (typeof statusObj?.token === 'string') tokenEl.value = statusObj.token; // NEW
+    }
+    async function readStatusOnce(){
+      try{
+        if (!statusChar) return null;
+        const v = await statusChar.readValue();
+        const txt = td.decode(v);
+        try { 
+          return JSON.parse(txt); 
+        } catch { 
+          return null; 
+        }
+      }catch{ return null; }
+    }
+    async function safeGetChar(service, uuid){
+      try { return await service.getCharacteristic(uuid); } catch { return null; }
+    }
+
+    // ===== Connect / Disconnect =====
+    async function connect(){
+      try{
+        log('Requesting device…');
+        device = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [SERVICE_A_UUID, SERVICE_B_UUID]   // both services
+        });
+        device.addEventListener('gattserverdisconnected', onDisconnected);
+
+        log('Connecting GATT…'); server = await device.gatt.connect();
+
+        log('Getting services…');
+        svcA = await server.getPrimaryService(SERVICE_A_UUID);
+        svcB = await server.getPrimaryService(SERVICE_B_UUID);
+
+        // A1xx chars (Service A)
+        statusChar = await safeGetChar(svcA, STATUS_CHAR_UUID);
+        nameChar   = await safeGetChar(svcA, DEVICE_NAME_UUID);
+        tokenChar  = await safeGetChar(svcA, TOKEN_UUID);
+        cmdChar    = await safeGetChar(svcA, COMMAND_UUID);
+
+        // A2xx chars (Service B)
+        ssidChar   = await safeGetChar(svcB, WIFI_SSID_UUID);
+        passChar   = await safeGetChar(svcB, WIFI_PASS_UUID);
+        wsHostChar = await safeGetChar(svcB, WSHOST_UUID);
+        wsPortChar = await safeGetChar(svcB, WSPORT_UUID);
+
+        log(`Chars(A): STATUS=${!!statusChar} NAME=${!!nameChar} TOKEN=${!!tokenChar} CMD=${!!cmdChar}`);
+        log(`Chars(B): SSID=${!!ssidChar} PASS=${!!passChar} WSHOST=${!!wsHostChar} WSPORT=${!!wsPortChar}`);
+
+        didInitialPopulate = false;
+        setBleUi(true);
+
+        const firstStatus = await readStatusOnce();
+        if (firstStatus){
+          populateConfigFromStatusOnce(firstStatus);
+          updateStatusUi(firstStatus);
+        }
+
+        // Fallback: if token wasn't present in status JSON, try direct read from TOKEN char
+        if (!tokenEl.value && tokenChar){
+          try {
+            const v = await tokenChar.readValue();
+            tokenEl.value = new TextDecoder().decode(v);
+          } catch {}
+        }
+
+        statusTimer = setInterval(async ()=>{
+          const st = await readStatusOnce();
+          if (st) updateStatusUi(st);
+        }, 5000);
+        log('Connected ✔');
+      }catch(e){
+        log(`Connect failed: ${e.message || e}`);
+        await disconnect();
+      }
+    }
+    async function disconnect(){
+      try{ if (device?.gatt?.connected) device.gatt.disconnect(); }catch{}
+      device=server=svcA=svcB=null;
+      statusChar=ssidChar=passChar=nameChar=tokenChar=cmdChar=wsHostChar=wsPortChar=null;
+      didInitialPopulate=false;
+      setBleUi(false);
+      log('Disconnected.');
+    }
+    function onDisconnected(){ log('GATT disconnected.'); disconnect(); }
+
+    // ===== Write helpers =====
+    async function writeUtf8(char, text, label){
+      if (!char) throw new Error(`${label} characteristic not available`);
+      const data = new TextEncoder().encode(text || '');
+      await char.writeValue(data);
+      log(`${label}: wrote ${data.length} bytes`);
+    }
+    async function writeUtf8Chunked(char, text, label, chunkSize=180){
+      if (!char) throw new Error(`${label} characteristic not available`);
+      const data = new TextEncoder().encode(text || '');
+      for (let i=0; i<data.length; i+=chunkSize) await char.writeValue(data.slice(i,i+chunkSize));
+      log(`${label}: wrote ${data.length} bytes${data.length>chunkSize?' (chunked)':''}`);
+    }
+
+    // ===== Button handlers =====
+    btnConnect.addEventListener('click', ()=>connect());
+    btnDisconnect.addEventListener('click', ()=>disconnect());
+    btnReadStatus.addEventListener('click', async ()=>{ 
+      const st = await readStatusOnce(); 
+      if (st) {
+        updateStatusUi(st);
+      } 
+    });
+
+    btnSaveWifi.addEventListener('click', async ()=>{
+      try{
+        if (!server?.connected) throw new Error('Not connected');
+        await writeUtf8(ssidChar, ssidEl.value, 'SSID');
+        await writeUtf8(passChar, passEl.value, 'PASS');
+        if (nameEl.value) await writeUtf8(nameChar, nameEl.value, 'NAME');
+        log('Wi-Fi credentials sent.');
+      }catch(e){ log(`Save Wi-Fi failed: ${e.message || e}`); }
+    });
+
+    btnSaveBackend.addEventListener('click', async ()=>{
+      try{
+        if (!server?.connected) throw new Error('Not connected');
+        const host = (wsHostEl.value||'').trim();
+        const port = Number((wsPortEl.value||'').trim());
+        if (!host) throw new Error('WS Host is required');
+        if (!/^[a-z0-9.\-:]+$/i.test(host)) throw new Error('WS Host contains invalid characters');
+        if (!Number.isInteger(port) || port<1 || port>65535) throw new Error('WS Port must be 1–65535');
+        await writeUtf8Chunked(wsHostChar, host, 'WSHOST', 180);
+        await writeUtf8(wsPortChar, String(port), 'WSPORT');
+        log('Backend host/port written.');
+      }catch(e){ log(`Save Backend failed: ${e.message || e}`); }
+    });
+
+    btnSaveToken.addEventListener('click', async ()=>{
+      try{
+        if (!server?.connected) throw new Error('Not connected');
+        await writeUtf8Chunked(tokenChar, tokenEl.value, 'TOKEN', 180);
+        log('Token written.');
+      }catch(e){ log(`Save token failed: ${e.message || e}`); }
+    });
+
+    btnReboot.addEventListener('click', async ()=>{
+      try{
+        if (!server?.connected) throw new Error('Not connected');
+        if (!confirm('Reboot device now?')) return;
+        await writeUtf8(cmdChar, 'reboot', 'CMD');
+        log('Reboot command sent.');
+      }catch(e){ log(`Reboot failed: ${e.message || e}`); }
+    });
+
+    // Initial UI + feature check
+    setBleUi(false);
+    if (!('bluetooth' in navigator)){
+      console.warn('This browser does not support Web Bluetooth. Use Chrome/Edge on desktop, HTTPS page.');
+      bleStatusEl.textContent = 'unsupported';
+      bleStatusEl.className = 'badge badge-pill badge-err';
+      btnConnect.disabled = true;
+    }
+  </script>
+</body>
+</html>

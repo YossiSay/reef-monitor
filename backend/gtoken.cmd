@@ -1,0 +1,1 @@
+node -e "const jwt=require('jsonwebtoken'); const secret=process.env.JWT_HOME_SECRET||'JWT_HOME_SECRET'; const tok=jwt.sign({sub:'user-123', homeId:'home-123'}, secret, {audience:'home', expiresIn:'180d'}); console.log(tok)"
