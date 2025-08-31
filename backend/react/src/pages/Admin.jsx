@@ -1,66 +1,60 @@
-// Admin.jsx
-import React from "react";
+import React, { useRef, useState, useEffect } from "react";
 import {
-  theme, Badge, Button, Card, CardHeader, CardContent, CardFooter, StatusPill,
-  Grid, Toolbar, Label} from "@/components/Common";
+  theme, Badge, Button, SectionCard, StatusPill,
+  Grid, Toolbar, Label, StyledInput, Snackbar
+} from "@/components/Common";
 
-/* =========================================================================
-   BLE UUIDs (must match firmware)
-   ========================================================================= */
-const SERVICE_A_UUID   = '0000a100-0000-1000-8000-00805f9b34fb'; // device/status
-const SERVICE_B_UUID   = '0000a200-0000-1000-8000-00805f9b34fb'; // network/backend
-// A1xx (Service A)
-const STATUS_CHAR_UUID = '0000a101-0000-1000-8000-00805f9b34fb';
-const DEVICE_NAME_UUID = '0000a104-0000-1000-8000-00805f9b34fb';
-const TOKEN_UUID       = '0000a105-0000-1000-8000-00805f9b34fb';
-const COMMAND_UUID     = '0000a106-0000-1000-8000-00805f9b34fb';
-// A2xx (Service B)
-const WIFI_SSID_UUID   = '0000a201-0000-1000-8000-00805f9b34fb';
-const WIFI_PASS_UUID   = '0000a202-0000-1000-8000-00805f9b34fb';
-const WSHOST_UUID      = '0000a203-0000-1000-8000-00805f9b34fb';
-const WSPORT_UUID      = '0000a204-0000-1000-8000-00805f9b34fb';
+// --- BLE UUIDs ---
+const BLE_UUIDS = {
+  SERVICE_A: '0000a100-0000-1000-8000-00805f9b34fb',
+  SERVICE_B: '0000a200-0000-1000-8000-00805f9b34fb',
+  STATUS_CHAR: '0000a101-0000-1000-8000-00805f9b34fb',
+  DEVICE_NAME: '0000a104-0000-1000-8000-00805f9b34fb',
+  TOKEN: '0000a105-0000-1000-8000-00805f9b34fb',
+  COMMAND: '0000a106-0000-1000-8000-00805f9b34fb',
+  WIFI_SSID: '0000a201-0000-1000-8000-00805f9b34fb',
+  WIFI_PASS: '0000a202-0000-1000-8000-00805f9b34fb',
+  WSHOST: '0000a203-0000-1000-8000-00805f9b34fb',
+  WSPORT: '0000a204-0000-1000-8000-00805f9b34fb'
+};
 
-export default function Admin() {
-  // --- BLE refs/state
-  const deviceRef = React.useRef(null);
-  const serverRef = React.useRef(null);
-  const ch = React.useRef({ status:null, ssid:null, pass:null, name:null, token:null, cmd:null, wsHost:null, wsPort:null });
-  const pollTimer = React.useRef(null);
-  const didPopulateOnce = React.useRef(false);
-  const td = React.useRef(new TextDecoder());
-  const te = React.useRef(new TextEncoder());
+// --- Hook for BLE logic ---
+function useBLELogic({ onStatus, onConnected, onDisconnected, onError }) {
+  const deviceRef = useRef(null);
+  const serverRef = useRef(null);
+  const ch = useRef({});
+  const pollTimer = useRef(null);
+  const didPopulateOnce = useRef(false);
+  const td = useRef(new TextDecoder());
+  const te = useRef(new TextEncoder());
+  const [supported, setSupported] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState({ wifi:'unknown', ip:'-', mac:'-', rssi:'-', ws_last_error:'' });
+  const [fields, setFields] = useState({
+    name: "", ssid: "", pass: "", wsHost: "", wsPort: "", token: ""
+  });
 
-  const [supported, setSupported] = React.useState(true);
-  const [connected, setConnected] = React.useState(false);
-  const [status, setStatus] = React.useState({ wifi:'unknown', ip:'-', mac:'-', rssi:'-', ws_last_error:'' });
-
-  // --- form
-  const [name, setName]     = React.useState('');
-  const [ssid, setSsid]     = React.useState('');
-  const [pass, setPass]     = React.useState('');
-  const [wsHost, setWsHost] = React.useState('');
-  const [wsPort, setWsPort] = React.useState('');
-  const [token, setToken]   = React.useState('');
-
-  const log = (m) => console.log(`[BLE] ${m}`);
-
-  React.useEffect(() => {
-    const isSupported = 'bluetooth' in navigator;
-    setSupported(isSupported);
+  useEffect(() => {
+    setSupported('bluetooth' in navigator);
     return () => {
       if (pollTimer.current) clearInterval(pollTimer.current);
-      safeDisconnect();
+      disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const safeGetChar = async (service, uuid) => { try { return await service.getCharacteristic(uuid); } catch { return null; } };
+  const log = m => console.log(`[BLE] ${m}`);
+
+  const safeGetChar = async (service, uuid) => {
+    try { return await service.getCharacteristic(uuid); } catch { return null; }
+  };
+
   const writeUtf8 = async (char, text, label) => {
     if (!char) throw new Error(`${label} characteristic not available`);
     const data = te.current.encode(text || '');
     await char.writeValue(data);
     log(`${label}: wrote ${data.length} bytes`);
   };
+
   const writeUtf8Chunked = async (char, text, label, chunkSize=180) => {
     if (!char) throw new Error(`${label} characteristic not available`);
     const data = te.current.encode(text || '');
@@ -82,53 +76,53 @@ export default function Admin() {
     } catch { return null; }
   };
 
-  const applyStatus = (st) => {
-    const wifi = st?.wifi || 'unknown';
-    const ip   = st?.ip   || '-';
-    const mac  = st?.mac  || '-';
-    const rssi = st?.rssi || '-';
-    const ws_last_error = st?.ws_last_error || '';
-    setStatus({ wifi, ip, mac, rssi, ws_last_error });
-
+  const applyStatus = st => {
+    setStatus({
+      wifi: st?.wifi || 'unknown',
+      ip: st?.ip || '-',
+      mac: st?.mac || '-',
+      rssi: st?.rssi || '-',
+      ws_last_error: st?.ws_last_error || ''
+    });
     if (!didPopulateOnce.current && st) {
       didPopulateOnce.current = true;
-      setName(st.name || '');
-      setWsHost(st.wsHost || '');
-      setWsPort(st.wsPort !== '' ? String(st.wsPort) : '');
-      if (typeof st.ssid === 'string') setSsid(st.ssid);
-      if (typeof st.pass === 'string') setPass(st.pass);
-      if (typeof st.token === 'string') setToken(st.token);
+      setFields(f => ({
+        ...f,
+        name: st.name || '',
+        wsHost: st.wsHost || '',
+        wsPort: st.wsPort !== '' ? String(st.wsPort) : '',
+        ssid: typeof st.ssid === 'string' ? st.ssid : f.ssid,
+        pass: typeof st.pass === 'string' ? st.pass : f.pass,
+        token: typeof st.token === 'string' ? st.token : f.token
+      }));
     }
+    onStatus && onStatus(st);
   };
-
-  const onDisconnected = () => { log('GATT disconnected.'); safeDisconnect(); };
 
   const connect = async () => {
     if (!supported) return;
     try {
-      log('Requesting device…');
       const dev = await navigator.bluetooth.requestDevice({
         acceptAllDevices: true,
-        optionalServices: [SERVICE_A_UUID, SERVICE_B_UUID]
+        optionalServices: [BLE_UUIDS.SERVICE_A, BLE_UUIDS.SERVICE_B]
       });
       deviceRef.current = dev;
-      dev.addEventListener('gattserverdisconnected', onDisconnected);
+      dev.addEventListener('gattserverdisconnected', disconnect);
 
-      log('Connecting GATT…');
       const server = await dev.gatt.connect();
       serverRef.current = server;
 
-      const svcA = await server.getPrimaryService(SERVICE_A_UUID);
-      const svcB = await server.getPrimaryService(SERVICE_B_UUID);
+      const svcA = await server.getPrimaryService(BLE_UUIDS.SERVICE_A);
+      const svcB = await server.getPrimaryService(BLE_UUIDS.SERVICE_B);
 
-      ch.current.status  = await safeGetChar(svcA, STATUS_CHAR_UUID);
-      ch.current.name    = await safeGetChar(svcA, DEVICE_NAME_UUID);
-      ch.current.token   = await safeGetChar(svcA, TOKEN_UUID);
-      ch.current.cmd     = await safeGetChar(svcA, COMMAND_UUID);
-      ch.current.ssid    = await safeGetChar(svcB, WIFI_SSID_UUID);
-      ch.current.pass    = await safeGetChar(svcB, WIFI_PASS_UUID);
-      ch.current.wsHost  = await safeGetChar(svcB, WSHOST_UUID);
-      ch.current.wsPort  = await safeGetChar(svcB, WSPORT_UUID);
+      ch.current.status  = await safeGetChar(svcA, BLE_UUIDS.STATUS_CHAR);
+      ch.current.name    = await safeGetChar(svcA, BLE_UUIDS.DEVICE_NAME);
+      ch.current.token   = await safeGetChar(svcA, BLE_UUIDS.TOKEN);
+      ch.current.cmd     = await safeGetChar(svcA, BLE_UUIDS.COMMAND);
+      ch.current.ssid    = await safeGetChar(svcB, BLE_UUIDS.WIFI_SSID);
+      ch.current.pass    = await safeGetChar(svcB, BLE_UUIDS.WIFI_PASS);
+      ch.current.wsHost  = await safeGetChar(svcB, BLE_UUIDS.WSHOST);
+      ch.current.wsPort  = await safeGetChar(svcB, BLE_UUIDS.WSPORT);
 
       didPopulateOnce.current = false;
       setConnected(true);
@@ -136,11 +130,10 @@ export default function Admin() {
       const firstStatus = await readStatusOnce();
       if (firstStatus) applyStatus(firstStatus);
 
-      // fallback: direct token read if not included
-      if (!token && ch.current.token) {
+      if (!fields.token && ch.current.token) {
         try {
           const v = await ch.current.token.readValue();
-          setToken(new TextDecoder().decode(v));
+          setFields(f => ({ ...f, token: new TextDecoder().decode(v) }));
         } catch {}
       }
 
@@ -150,218 +143,194 @@ export default function Admin() {
         if (st) applyStatus(st);
       }, 5000);
 
+      onConnected && onConnected();
       log('Connected ✔');
     } catch (e) {
       log(`Connect failed: ${e.message || e}`);
-      await safeDisconnect();
+      onError && onError(`Connect failed: ${e.message || e}`);
+      disconnect();
     }
   };
 
-  const safeDisconnect = async () => {
+  const disconnect = async () => {
     try { if (deviceRef.current?.gatt?.connected) deviceRef.current.gatt.disconnect(); } catch {}
     deviceRef.current = null;
     serverRef.current = null;
-    ch.current = { status:null, ssid:null, pass:null, name:null, token:null, cmd:null, wsHost:null, wsPort:null };
-    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current=null; }
+    ch.current = {};
+    if (pollTimer.current) { clearInterval(pollTimer.current); pollTimer.current = null; }
     didPopulateOnce.current = false;
     setConnected(false);
+    onDisconnected && onDisconnected();
   };
 
-  // actions
-  const readNow = async () => { const st = await readStatusOnce(); if (st) applyStatus(st); };
+  // Actions
+  const readNow = async () => {
+    const st = await readStatusOnce();
+    if (st) applyStatus(st);
+  };
+
   const saveWifi = async () => {
     try {
       if (!serverRef.current?.connected) throw new Error('Not connected');
-      await writeUtf8(ch.current.ssid, ssid, 'SSID');
-      await writeUtf8(ch.current.pass, pass, 'PASS');
-      if (name) await writeUtf8(ch.current.name, name, 'NAME');
-      log('Wi-Fi credentials sent.');
-    } catch (e) { log(`Save Wi-Fi failed: ${e.message || e}`); }
+      await writeUtf8(ch.current.ssid, fields.ssid, 'SSID');
+      await writeUtf8(ch.current.pass, fields.pass, 'PASS');
+      if (fields.name) await writeUtf8(ch.current.name, fields.name, 'NAME');
+      onConnected && onConnected("Wi-Fi credentials sent.");
+    } catch (e) { onError && onError(`Save Wi-Fi failed: ${e.message || e}`); }
   };
+
   const saveBackend = async () => {
     try {
       if (!serverRef.current?.connected) throw new Error('Not connected');
-      const host = (wsHost || '').trim();
-      const portNum = Number((wsPort || '').trim());
+      const host = (fields.wsHost || '').trim();
+      const portNum = Number((fields.wsPort || '').trim());
       if (!host) throw new Error('WS Host is required');
       if (!/^[a-z0-9.\-:]+$/i.test(host)) throw new Error('WS Host contains invalid characters');
       if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) throw new Error('WS Port must be 1–65535');
       await writeUtf8Chunked(ch.current.wsHost, host, 'WSHOST', 180);
       await writeUtf8(ch.current.wsPort, String(portNum), 'WSPORT');
-      log('Backend host/port written.');
-    } catch (e) { log(`Save Backend failed: ${e.message || e}`); }
+      onConnected && onConnected("Backend host/port written.");
+    } catch (e) { onError && onError(`Save Backend failed: ${e.message || e}`); }
   };
+
   const saveToken = async () => {
     try {
       if (!serverRef.current?.connected) throw new Error('Not connected');
-      await writeUtf8Chunked(ch.current.token, token, 'TOKEN', 180);
-      log('Token written.');
-    } catch (e) { log(`Save token failed: ${e.message || e}`); }
+      await writeUtf8Chunked(ch.current.token, fields.token, 'TOKEN', 180);
+      onConnected && onConnected("Token written.");
+    } catch (e) { onError && onError(`Save token failed: ${e.message || e}`); }
   };
+
   const reboot = async () => {
     try {
       if (!serverRef.current?.connected) throw new Error('Not connected');
-      // eslint-disable-next-line no-restricted-globals
-      if (!confirm('Reboot device now?')) return;
+      if (!window.confirm('Reboot device now?')) return;
       await writeUtf8(ch.current.cmd, 'reboot', 'CMD');
-      log('Reboot command sent.');
-    } catch (e) { log(`Reboot failed: ${e.message || e}`); }
+      onConnected && onConnected("Reboot command sent.");
+    } catch (e) { onError && onError(`Reboot failed: ${e.message || e}`); }
   };
 
-  // derived UI
+  // Derived UI
   const wifiTone =
     status.wifi === 'connected' ? 'ok' :
     status.wifi === 'disconnected' ? 'danger' : 'warn';
   const canWriteToken = status.wifi === 'connected';
 
-  /* =========================================================================
-     RENDER — same visual rhythm as Dashboard
-     ========================================================================= */
+  // Update form fields
+  const handleField = key => e => setFields(f => ({ ...f, [key]: e.target.value }));
+
+  return {
+    supported, connected, status, fields, wifiTone, canWriteToken,
+    connect, disconnect, readNow,
+    saveWifi, saveBackend, saveToken, reboot,
+    setFields, handleField
+  };
+}
+
+// --- Main Component ---
+export default function Admin() {
+  // Snackbar state
+  const [snackbar, setSnackbar] = useState({ message: "", type: "info" });
+
+  // BLE logic hook
+  const ble = useBLELogic({
+    onConnected: msg => setSnackbar({ message: msg || "Bluetooth Connected", type: "info" }),
+    onDisconnected: () => setSnackbar({ message: "Bluetooth Disconnected", type: "info" }),
+    onStatus: () => {}, // can be used for analytics/log
+    onError: msg => setSnackbar({ message: msg, type: "error" })
+  });
+
+  // Layout
   return (
     <div>
-      {/* Header (matches Dashboard header spacing/typography) */}
+      <Snackbar
+        message={snackbar.message} 
+        type={snackbar.type}
+        onClose={() => setSnackbar({ message: "", type: "info" })}
+      />
+
       <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: .2 }}>ESP32 Bluetooth Setup</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: .2 }}>ESP32 Bluetooth Setup</h1>
           <div style={{ fontSize: 13, color: theme.color.inkMuted }}>
-            Connect over Bluetooth, configure Wi-Fi/Backend, set the cloud token, and reboot.
+            Configure device: BLE connection, Wi-Fi, backend, token, reboot.
           </div>
         </div>
         <div />
       </header>
 
-      {/* Top row: Bluetooth + Live Status */}
-      <Grid min={320} gap={12}>
+      <Grid min={340} gap={14}>
         {/* Bluetooth Card */}
-        <Card>
-          <CardHeader>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ fontWeight: 800 }}>Bluetooth</div>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize: 12, color: theme.color.inkMuted }}>Browser</span>
-                <Badge tone={supported ? "ok" : "danger"}>{supported ? "supported" : "unsupported"}</Badge>
-                <span style={{ fontSize: 12, color: theme.color.inkMuted }}>GATT</span>
-                <StatusPill status={connected ? "Connected" : "Disconnected"} />
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Toolbar>
-              <Button onClick={connect} disabled={connected || !supported}>Connect</Button>
-              <Button variant="outline" onClick={safeDisconnect} disabled={!connected}>Disconnect</Button>
-              <Button variant="outline" onClick={readNow} disabled={!connected}>Read Now</Button>
-            </Toolbar>
-          </CardContent>
-          <CardFooter>Web Bluetooth ▶ GATT characteristics (UTF-8 strings)</CardFooter>
-        </Card>
+        <SectionCard
+          title="Bluetooth"
+          footer="Web Bluetooth ▶ GATT characteristics (UTF-8 strings)">
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 8 }}>
+            <span style={{ fontWeight: 600 }}>Browser</span>
+            <Badge tone={ble.supported ? "ok" : "danger"}>{ble.supported ? "supported" : "unsupported"}</Badge>
+            <span style={{ fontWeight: 600 }}>GATT</span>
+            <StatusPill status={ble.connected ? "Connected" : "Disconnected"} />
+          </div>
+          <Toolbar>
+            <Button onClick={ble.connect} disabled={ble.connected || !ble.supported}>Connect</Button>
+            <Button variant="outline" onClick={ble.disconnect} disabled={!ble.connected}>Disconnect</Button>
+            <Button variant="outline" onClick={ble.readNow} disabled={!ble.connected}>Read Now</Button>
+          </Toolbar>
+        </SectionCard>
 
         {/* Live Status Card */}
-        <Card>
-          <CardHeader>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ fontWeight: 800 }}>Live Status</div>
-              <Badge tone={wifiTone}>Wi-Fi: {status.wifi || "unknown"}</Badge>
+        <SectionCard
+          title="Live Status"
+          footer="This page talks directly to the ESP over BLE (no internet).">
+          <Grid min={160} gap={10}>
+            <div>
+              <Label>IP</Label>
+              <Badge tone="ok">{ble.status.ip || "-"}</Badge>
             </div>
-          </CardHeader>
-          <CardContent>
-            <Grid min={160} gap={10}>
-              <div>
-                <Label>IP</Label>
-                <Badge tone="ok">{status.ip || "-"}</Badge>
-              </div>
-              <div>
-                <Label>MAC</Label>
-                <Badge tone="ok">{status.mac || "-"}</Badge>
-              </div>
-              <div>
-                <Label>RSSI</Label>
-                <Badge tone="ok">{String(status.rssi ?? "-")}</Badge>
-              </div>
-              <div>
-                <Label>WS Last Error</Label>
-                <Badge tone={status.ws_last_error ? "danger" : "ok"}>
-                  {status.ws_last_error || "-"}
-                </Badge>
-              </div>
-            </Grid>
-          </CardContent>
-          <CardFooter>This page talks directly to the ESP over BLE (no internet).</CardFooter>
-        </Card>
+            <div>
+              <Label>MAC</Label>
+              <Badge tone="ok">{ble.status.mac || "-"}</Badge>
+            </div>
+            <div>
+              <Label>RSSI</Label>
+              <Badge tone="ok">{String(ble.status.rssi ?? "-")}</Badge>
+            </div>
+            <div>
+              <Label>WS Last Error</Label>
+              <Badge tone={ble.status.ws_last_error ? "danger" : "ok"}>
+                {ble.status.ws_last_error || "-"}
+              </Badge>
+            </div>
+            <div>
+              <Badge tone={ble.wifiTone}>Wi-Fi: {ble.status.wifi || "unknown"}</Badge>
+            </div>
+          </Grid>
+        </SectionCard>
       </Grid>
 
-      {/* Configure */}
-      <div style={{ height: 12 }} />
-      <Card>
-        <CardHeader>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-            <div style={{ fontWeight: 800 }}>Configure</div>
-            <div style={{ fontSize: 12, color: theme.color.inkMuted }}>Fields populate on first connect</div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* WiFi */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap: 8, marginBottom: 12 }}>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Device Name"
-              aria-label ="Device Name"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <input
-              value={ssid}
-              onChange={e => setSsid(e.target.value)}
-              placeholder="SSID"
-              aria-label ="SSID"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <input
-              value={pass}
-              onChange={e => setPass(e.target.value)}
-              placeholder="Password"
-              aria-label ="Password"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <Button onClick={saveWifi} disabled={!connected}>Save Wi-Fi</Button>
-          </div>
-
-          {/* Backend */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap: 8, marginBottom: 12 }}>
-            <input
-              value={wsHost}
-              onChange={e => setWsHost(e.target.value)}
-              placeholder="WS Host"
-              aria-label ="WS Host"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <input
-              value={wsPort}
-              onChange={e => setWsPort(e.target.value)}
-              placeholder="WS Port"
-              aria-label ="WS Port"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <Button onClick={saveBackend} disabled={!connected}>Save Backend</Button>
-          </div>
-
-          <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap: 8, marginBottom: 12 }}>
-            <input
-              value={token}
-              onChange={e => setToken(e.target.value)}
-              placeholder="Token"
-              aria-label ="Token"
-              style={{ padding:"8px 12px", borderRadius: 12, border:`1px solid ${theme.color.border}`, outline: "none" }}
-            />
-            <Button onClick={saveToken} disabled={!connected || !canWriteToken}>Save Token</Button>
-          </div>
-
-          {/* Reboot */}
-          <div style={{ marginTop: 14 }}>
-            <Button variant="destructive" onClick={reboot} disabled={!connected}>Reboot Device</Button>
-          </div>
-        </CardContent>
-        <CardFooter>Use Chrome/Edge on desktop over HTTPS for Web Bluetooth support.</CardFooter>
-      </Card>
+      <div style={{ height: 18 }} />
+      <SectionCard
+        title="Configure"
+        subtitle="Fields populate on first connect"
+        footer="Use Chrome/Edge on desktop over HTTPS for Web Bluetooth support.">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap: 8, marginBottom: 14 }}>
+          <StyledInput value={ble.fields.name} onChange={ble.handleField("name")} placeholder="Device Name" ariaLabel="Device Name" disabled={!ble.connected} />
+          <StyledInput value={ble.fields.ssid} onChange={ble.handleField("ssid")} placeholder="SSID" ariaLabel="SSID" disabled={!ble.connected} />
+          <StyledInput value={ble.fields.pass} onChange={ble.handleField("pass")} placeholder="Password" ariaLabel="Password" disabled={!ble.connected} />
+          <Button onClick={ble.saveWifi} disabled={!ble.connected}>Save Wi-Fi</Button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap: 8, marginBottom: 14 }}>
+          <StyledInput value={ble.fields.wsHost} onChange={ble.handleField("wsHost")} placeholder="WS Host" ariaLabel="WS Host" disabled={!ble.connected} />
+          <StyledInput value={ble.fields.wsPort} onChange={ble.handleField("wsPort")} placeholder="WS Port" ariaLabel="WS Port" disabled={!ble.connected} />
+          <Button onClick={ble.saveBackend} disabled={!ble.connected}>Save Backend</Button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap: 8, marginBottom: 14 }}>
+          <StyledInput value={ble.fields.token} onChange={ble.handleField("token")} placeholder="Token" ariaLabel="Token" disabled={!ble.connected || !ble.canWriteToken} />
+          <Button onClick={ble.saveToken} disabled={!ble.connected || !ble.canWriteToken}>Save Token</Button>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <Button variant="destructive" onClick={ble.reboot} disabled={!ble.connected}>Reboot Device</Button>
+        </div>
+      </SectionCard>
     </div>
   );
 }

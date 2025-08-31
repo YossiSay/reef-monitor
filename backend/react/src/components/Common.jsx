@@ -72,6 +72,22 @@ export const Button = ({ children, onClick, variant = "default", disabled }) => 
   );
 };
 
+// --- Card Section ---
+export const SectionCard = ({ title, subtitle, children, footer }) => {
+  return (
+    <Card>
+      <CardHeader>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontWeight: 800 }}>{title}</div>
+          {subtitle && <div style={{ fontSize: 12, color: theme.color.inkMuted }}>{subtitle}</div>}
+        </div>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+      {footer && <CardFooter>{footer}</CardFooter>}
+    </Card>
+  );
+}
+
 export const Card = ({ children }) => (
   <div style={{
     border: `1px solid ${theme.color.border}`,
@@ -163,3 +179,46 @@ export const SectionTitle = ({ title, subtitle }) => (
     {subtitle && <div style={{ fontSize: 12, color: theme.color.inkMuted }}>{subtitle}</div>}
   </div>
 );
+
+// --- Reusable Input ---
+export const StyledInput = ({ value, onChange, placeholder, ariaLabel, disabled }) => {
+  return (
+    <input
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      style={{
+        padding: "8px 12px",
+        borderRadius: 12,
+        border: `1px solid ${theme.color.border}`,
+        outline: "none",
+        background: disabled ? "#f8f8f8" : "#fff"
+      }}
+    />
+  );
+}
+
+// --- Snackbar ---
+export const Snackbar = ({ message, type, onClose }) => {
+  if (!message) return null;
+  return (
+    <div style={{
+      position: "fixed",
+      bottom: 24,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: type === "error" ? "#ffdddd" : "#ddffdd",
+      color: "#222",
+      padding: "8px",
+      borderRadius: 8,
+      zIndex: 1000,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.2)"
+    }}>
+      {message}
+      <Button variant="outline" style={{ marginLeft: 16 }} onClick={onClose}>Close</Button>
+    </div>
+  );
+}
+
