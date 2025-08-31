@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {Trash2, PlugZap} from "lucide-react";
 import {theme, Badge, Button, StatusPill, StyledInput, SectionCard, Label} from '@/components/Common'
 import {normalizeMacInput} from '@/components/Functions'
@@ -23,6 +23,16 @@ export default function DeviceManager ({
   const [nickname, setNickname] = React.useState("");
   const [token, setToken]     = React.useState("");
   const [mac, setMac]         = React.useState("");
+
+  // Auto-connect to all devices on mount
+  useEffect(() => {
+    if (devices.length === 0) return;
+      setTimeout(() => {
+        devices.forEach(d => {
+          onConnect(d)
+        })
+      }, 5000)
+  }, [])
 
   return (
       <SectionCard
