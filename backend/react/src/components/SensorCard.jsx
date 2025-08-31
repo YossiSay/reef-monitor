@@ -28,7 +28,7 @@ export default function SensorCard ({ sensorKey, meta, data, status, deviceName 
     return (
       <Card>
         <CardContent>
-          <div style={{ fontSize: 13, color: theme.color.inkMuted }}>
+          <div style={{ fontSize: 12, color: theme.color.inkMuted }}>
             Waiting for data… connect and press <b>Refresh</b>.
           </div>
         </CardContent>
@@ -82,13 +82,13 @@ export default function SensorCard ({ sensorKey, meta, data, status, deviceName 
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginTop:8 }}>
             <div style={{ padding: 8, background: "#f9fafb", border:`1px solid ${theme.color.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: theme.color.inkMuted }}>Last reading</div>
+              <div style={{ fontSize: 12, color: theme.color.inkMuted }}>Last reading</div>
               <div style={{ fontWeight: 800 }}>
                 {Number.isFinite(dispLatest) ? latest : "—"}
               </div>
             </div>
             <div style={{ padding: 8, background: "#f9fafb", border:`1px solid ${theme.color.border}`, borderRadius: 10 }}>
-              <div style={{ fontSize: 11, color: theme.color.inkMuted }}>Prev reading</div>
+              <div style={{ fontSize: 12, color: theme.color.inkMuted }}>Prev reading</div>
               <div style={{ fontWeight: 800 }}>
                 {(() => {
                   const prevRaw = last2[0]?.value;

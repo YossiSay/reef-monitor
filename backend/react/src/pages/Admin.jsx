@@ -1,8 +1,9 @@
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
-  theme, Badge, Button, SectionCard, StatusPill,
+  Badge, Button, SectionCard, StatusPill,
   Grid, Toolbar, Label, StyledInput, Snackbar
 } from "@/components/Common";
+import PageHeader from "@/components/PageHeader";
 
 // --- BLE UUIDs ---
 const BLE_UUIDS = {
@@ -234,54 +235,56 @@ export default function Admin() {
 
   // BLE logic hook
   const ble = useBLELogic({
-    onConnected: msg => setSnackbar({ message: msg || "Bluetooth Connected", type: "info" }),
-    onDisconnected: () => setSnackbar({ message: "Bluetooth Disconnected", type: "info" }),
+    // onConnected: msg => setSnackbar({ message: msg || "Bluetooth Connected", type: "info" }),
+    // onDisconnected: () => setSnackbar({ message: "Bluetooth Disconnected", type: "info" }),
     onStatus: () => {}, // can be used for analytics/log
-    onError: msg => setSnackbar({ message: msg, type: "error" })
+    onError: msg => {
+      // setSnackbar({ message: msg, type: "error" })
+      console.error(msg);
+      console.error(ws_last_error);
+    }
   });
 
-  // Layout
   return (
     <div>
       <Snackbar
-        message={snackbar.message} 
+        message={snackbar.message}
         type={snackbar.type}
-        onClose={() => setSnackbar({ message: "", type: "info" })}
-      />
+        onClose={() => setSnackbar({ message: "", type: "info" })}/>
 
-      <header style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 16 }}>
-        <div>
-          <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0, letterSpacing: .2 }}>ESP32 Bluetooth Setup</h1>
-          <div style={{ fontSize: 13, color: theme.color.inkMuted }}>
-            Configure device: BLE connection, Wi-Fi, backend, token, reboot.
-          </div>
-        </div>
-        <div />
-      </header>
+      <PageHeader 
+        title="ESP32 Bluetooth Setup"
+        subtitle="Configure over BLE: Wi-Fi, backend, token, and reboot"/>
 
-      <Grid min={340} gap={14}>
+      <Grid min={320} gap={12}>
         {/* Bluetooth Card */}
         <SectionCard
           title="Bluetooth"
-          footer="Web Bluetooth ▶ GATT characteristics (UTF-8 strings)">
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 8 }}>
-            <span style={{ fontWeight: 600 }}>Browser</span>
-            <Badge tone={ble.supported ? "ok" : "danger"}>{ble.supported ? "supported" : "unsupported"}</Badge>
-            <span style={{ fontWeight: 600 }}>GATT</span>
+          footer="Web Bluetooth ▶StyledInput GATT characteristics (UTF-8 strings)">
+          <div style={{display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6}}>
+            <Label>Browser</Label>
+            <Badge tone={ble.supported ? "ok" : "danger"}>{ble.supported ? "Supported" : "unsupported"}</Badge>
+            <Label>GATT</Label>
             <StatusPill status={ble.connected ? "Connected" : "Disconnected"} />
           </div>
-          <Toolbar>
-            <Button onClick={ble.connect} disabled={ble.connected || !ble.supported}>Connect</Button>
-            <Button variant="outline" onClick={ble.disconnect} disabled={!ble.connected}>Disconnect</Button>
-            <Button variant="outline" onClick={ble.readNow} disabled={!ble.connected}>Read Now</Button>
-          </Toolbar>
+
+          <div style={{
+              display: "grid", 
+              gridTemplateColumns: "1fr 1fr 1fr auto",
+              marginTop: 12}}
+            >
+              <Button onClick={ble.connect} disabled={ble.connected || !ble.supported}>Connect</Button>
+              <Button variant="outline" onClick={ble.disconnect} disabled={!ble.connected} style={{marginLeft: 8, marginRight: 8}}>Disconnect</Button>
+              <Button variant="outline" onClick={ble.readNow} disabled={!ble.connected}>Read Now</Button>
+          </div>
         </SectionCard>
+
 
         {/* Live Status Card */}
         <SectionCard
-          title="Live Status"
-          footer="This page talks directly to the ESP over BLE (no internet).">
-          <Grid min={160} gap={10}>
+          title={<div>Live Status: <Badge tone={ble.wifiTone}>Wi-Fi: {ble.status.wifi || "unknown"}</Badge></div>}
+          footer="Direct BLE data, no internet required">
+          <Grid min={140} gap={8}>
             <div>
               <Label>IP</Label>
               <Badge tone="ok">{ble.status.ip || "-"}</Badge>
@@ -294,40 +297,55 @@ export default function Admin() {
               <Label>RSSI</Label>
               <Badge tone="ok">{String(ble.status.rssi ?? "-")}</Badge>
             </div>
-            <div>
+            {/* <div>
               <Label>WS Last Error</Label>
               <Badge tone={ble.status.ws_last_error ? "danger" : "ok"}>
                 {ble.status.ws_last_error || "-"}
               </Badge>
-            </div>
-            <div>
-              <Badge tone={ble.wifiTone}>Wi-Fi: {ble.status.wifi || "unknown"}</Badge>
-            </div>
+            </div> */}
+
           </Grid>
         </SectionCard>
       </Grid>
 
-      <div style={{ height: 18 }} />
+      <div style={{ height: 12 }} />
+
       <SectionCard
         title="Configure"
         subtitle="Fields populate on first connect"
-        footer="Use Chrome/Edge on desktop over HTTPS for Web Bluetooth support.">
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr auto", gap: 8, marginBottom: 14 }}>
+        footer="Use Chrome/Edge on desktop over HTTPS for Web Bluetooth support."
+      >
+        <div style={{
+          display: "grid", 
+          gridTemplateColumns: "1fr 1fr 1fr auto", 
+          gap: 8, 
+          marginBottom: 12
+        }}>
           <StyledInput value={ble.fields.name} onChange={ble.handleField("name")} placeholder="Device Name" ariaLabel="Device Name" disabled={!ble.connected} />
           <StyledInput value={ble.fields.ssid} onChange={ble.handleField("ssid")} placeholder="SSID" ariaLabel="SSID" disabled={!ble.connected} />
           <StyledInput value={ble.fields.pass} onChange={ble.handleField("pass")} placeholder="Password" ariaLabel="Password" disabled={!ble.connected} />
           <Button onClick={ble.saveWifi} disabled={!ble.connected}>Save Wi-Fi</Button>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto", gap: 8, marginBottom: 14 }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr auto",
+          gap: 8,
+          marginBottom: 12
+        }}>
           <StyledInput value={ble.fields.wsHost} onChange={ble.handleField("wsHost")} placeholder="WS Host" ariaLabel="WS Host" disabled={!ble.connected} />
           <StyledInput value={ble.fields.wsPort} onChange={ble.handleField("wsPort")} placeholder="WS Port" ariaLabel="WS Port" disabled={!ble.connected} />
           <Button onClick={ble.saveBackend} disabled={!ble.connected}>Save Backend</Button>
         </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap: 8, marginBottom: 14 }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto",
+          gap: 8,
+          marginBottom: 12
+        }}>
           <StyledInput value={ble.fields.token} onChange={ble.handleField("token")} placeholder="Token" ariaLabel="Token" disabled={!ble.connected || !ble.canWriteToken} />
           <Button onClick={ble.saveToken} disabled={!ble.connected || !ble.canWriteToken}>Save Token</Button>
         </div>
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 12 }}>
           <Button variant="destructive" onClick={ble.reboot} disabled={!ble.connected}>Reboot Device</Button>
         </div>
       </SectionCard>

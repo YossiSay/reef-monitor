@@ -87,3 +87,7 @@ body {
   background: linear-gradient(#fff, #f8fafc);
   font-family: 'Dosis', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
+
+input {
+  font-size: 12px;
+}

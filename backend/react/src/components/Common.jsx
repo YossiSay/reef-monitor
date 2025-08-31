@@ -75,7 +75,7 @@ export const Button = ({ children, onClick, variant = "default", disabled, style
         alignItems: "center",
         gap: 8,
         fontWeight: 600,
-        fontSize: 14,
+        fontSize: 12,
         borderRadius: 12,
         padding: "8px 12px",
         cursor: disabled ? "not-allowed" : "pointer",
@@ -174,8 +174,8 @@ export const Snackbar = ({ message, type = "info", onClose, duration = 3500 }) =
   useEffect(() => {
     if (!message) return;
     if (duration > 0) {
-      // const timer = setTimeout(onClose, duration);
-      // return () => clearTimeout(timer);
+      const timer = setTimeout(onClose, duration);
+      return () => clearTimeout(timer);
     }
   }, [message, duration, onClose]);
   if (!message) return null;
