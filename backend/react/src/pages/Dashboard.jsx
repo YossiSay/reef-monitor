@@ -17,7 +17,7 @@ function useDeviceSockets({ devices, points }) {
   const [dataByDevice, setDataByDevice] = React.useState({});
   const wsMapRef = React.useRef({});
 
-  const WS_HOST = import.meta?.env?.VITE_WS_HOST || "ws://192.168.10.199:3000";
+  const WS_HOST = import.meta?.env?.VITE_WS_HOST || "ws://192.168.10.101:3000";
   const urlFor = React.useCallback(
     (tkn, macAddr) => `${WS_HOST}/app?token=${encodeURIComponent(tkn)}&mac=${encodeURIComponent(macAddr)}`,
     [WS_HOST]

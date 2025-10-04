@@ -170,12 +170,30 @@ function useBLELogic({ onStatus, onConnected, onDisconnected, onError }) {
     if (st) applyStatus(st);
   };
 
+  const scanWifi = async () => {
+    try {
+      if (!serverRef.current?.connected) throw new Error('Not connected');
+      await writeUtf8(ch.current.cmd, 'scan_wifi', 'CMD');
+      onConnected && onConnected('Wi-Fi scan started...');
+      // ESP32 can respond with a JSON list in STATUS characteristic
+    } catch (e) {
+      onError && onError(`Scan Wi-Fi failed: ${e.message || e}`);
+    }
+  };
+
+  const saveName = async () => {
+    try {
+      if (!serverRef.current?.connected) throw new Error('Not connected');
+      await writeUtf8(ch.current.name, fields.name, 'NAME');
+      onConnected && onConnected("Name sent.");
+    } catch (e) { onError && onError(`Save name failed: ${e.message || e}`); }
+  };
+
   const saveWifi = async () => {
     try {
       if (!serverRef.current?.connected) throw new Error('Not connected');
       await writeUtf8(ch.current.ssid, fields.ssid, 'SSID');
       await writeUtf8(ch.current.pass, fields.pass, 'PASS');
-      if (fields.name) await writeUtf8(ch.current.name, fields.name, 'NAME');
       onConnected && onConnected("Wi-Fi credentials sent.");
     } catch (e) { onError && onError(`Save Wi-Fi failed: ${e.message || e}`); }
   };
@@ -191,7 +209,9 @@ function useBLELogic({ onStatus, onConnected, onDisconnected, onError }) {
       await writeUtf8Chunked(ch.current.wsHost, host, 'WSHOST', 180);
       await writeUtf8(ch.current.wsPort, String(portNum), 'WSPORT');
       onConnected && onConnected("Backend host/port written.");
-    } catch (e) { onError && onError(`Save Backend failed: ${e.message || e}`); }
+    } catch (e) { 
+      onError && onError(`Save Backend failed: ${e.message || e}`); 
+    }
   };
 
   const saveToken = async () => {
@@ -223,7 +243,7 @@ function useBLELogic({ onStatus, onConnected, onDisconnected, onError }) {
   return {
     supported, connected, status, fields, wifiTone, canWriteToken,
     connect, disconnect, readNow,
-    saveWifi, saveBackend, saveToken, reboot,
+    saveWifi, saveBackend, saveToken, reboot, scanWifi, saveName,
     setFields, handleField
   };
 }
@@ -313,10 +333,23 @@ export default function Admin() {
       >
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 8, marginBottom: 8 }}>
           <StyledInput value={ble.fields.name} onChange={ble.handleField("name")} placeholder="Device Name" ariaLabel="Device Name" disabled={!ble.connected} />
-          <StyledInput value={ble.fields.ssid} onChange={ble.handleField("ssid")} placeholder="SSID" ariaLabel="SSID" disabled={!ble.connected} />
+          <Button onClick={ble.saveName} disabled={!ble.connected || !ble.canWriteToken}>Save Name</Button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <StyledInput value={ble.fields.ssid} onChange={ble.handleField("ssid")} placeholder="SSID" ariaLabel="SSID" disabled={!ble.connected} />          
           <StyledInput value={ble.fields.pass} onChange={ble.handleField("pass")} placeholder="Password" ariaLabel="Password" disabled={!ble.connected} />
-          <Button onClick={ble.saveWifi} disabled={!ble.connected}>Save Wi-Fi</Button>
-          
+          <Button onClick={ble.scanWifi} disabled={!ble.connected || !ble.canWriteToken}>Scan Wi-Fi</Button>
+          <Button onClick={ble.saveWifi} disabled={!ble.connected}>Save Name & Wi-Fi</Button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+          <StyledInput value={ble.fields.wsHost} onChange={ble.handleField("wsHost")} placeholder="WS Host" ariaLabel="wsHost" disabled={!ble.connected || !ble.canWriteToken} />
+          <StyledInput value={ble.fields.wsPort} onChange={ble.handleField("wsPort")} placeholder="WS Port" ariaLabel="wsPort" disabled={!ble.connected || !ble.canWriteToken} />
+          <Button onClick={ble.saveBackend} disabled={!ble.connected || !ble.canWriteToken}>Save WS</Button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 8, marginBottom: 8 }}>
           <StyledInput value={ble.fields.token} onChange={ble.handleField("token")} placeholder="Token" ariaLabel="Token" disabled={!ble.connected || !ble.canWriteToken} />
           <Button onClick={ble.saveToken} disabled={!ble.connected || !ble.canWriteToken}>Save Token</Button>
         </div>
